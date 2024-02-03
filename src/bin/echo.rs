@@ -1,13 +1,9 @@
+use worlds_end::*;
+
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::io::{StdoutLock, Write};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Message {
-    src: String,
-    dest: String,
-    body: Body,
-}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
@@ -22,24 +18,18 @@ enum Payload {
     },
     EchoOk {
         echo: String,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Body {
-    msg_id: Option<usize>,
-    in_reply_to: Option<usize>,
-    #[serde(flatten)]
-    payload: Payload,
+    }
 }
 
 struct EchoNode {
     id: usize,
 }
 
-impl EchoNode {
-    pub fn step(&mut self, input: Message, output: &mut StdoutLock) -> anyhow::Result<()> {
+impl Node<Payload> for EchoNode {
+    fn step(&mut self, input: Message<Payload>, output: &mut StdoutLock) -> anyhow::Result<()> {
         match input.body.payload {
+            // Single Init at the start of each #[test]
+            // Should reply with "init_ok"
             Payload::Init { .. } => {
                 let reply = Message {
                     src: input.dest,
@@ -78,16 +68,5 @@ impl EchoNode {
 }
 
 fn main() -> anyhow::Result<()> {
-    let stdin = std::io::stdin().lock();
-    let inputs = serde_json::Deserializer::from_reader(stdin).into_iter::<Message>();
-
-    let mut stdout = std::io::stdout().lock();
-    let mut outputs = serde_json::Serializer::new(&mut stdout);
-
-    let mut state = EchoNode { id: 0 };
-    for input in inputs {
-        let input = input.context("Input from STDIN could not be deserialized")?;
-        state.step(input, &mut stdout)?;
-    }
-    Ok(())
+    main_loop(EchoNode { id: 0})
 }
